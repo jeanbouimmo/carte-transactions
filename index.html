@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carte des Transactions Immobilières</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+    <style>
+        #map { height: 600px; }
+        .filter-container {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="filter-container">
+        <label for="yearFilter">Année :</label>
+        <select id="yearFilter"></select>
+        <label for="streetFilter">Rue :</label>
+        <select id="streetFilter" disabled></select>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        let transactions = [];
+        let map = L.map('map').setView([48.8004, 2.4919], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let markersLayer = L.markerClusterGroup().addTo(map);
+
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('transactions.json')
+                .then(response => response.json())
+                .then(data => {
+                    transactions = data;
+                    initFilters();
+                })
+                .catch(error => console.error("Erreur lors du chargement des transactions :", error));
+        });
+
+        function initFilters() {
+            let yearSelect = document.getElementById('yearFilter');
+            let streetSelect = document.getElementById('streetFilter');
+
+            let years = [...new Set(transactions.map(t => t.annee))].sort();
+            years.forEach(year => {
+                let option = new Option(year, year);
+                yearSelect.add(option);
+            });
+            yearSelect.addEventListener('change', updateStreets);
+            streetSelect.addEventListener('change', updateMap);
+        }
+
+        function updateStreets() {
+            let selectedYear = document.getElementById('yearFilter').value;
+            let streetSelect = document.getElementById('streetFilter');
+            streetSelect.innerHTML = '';
+            
+            let streets = [...new Set(transactions.filter(t => t.annee == selectedYear).map(t => t.rue))].sort();
+            streets.forEach(street => {
+                let option = new Option(street, street);
+                streetSelect.add(option);
+            });
+            streetSelect.disabled = false;
+            updateMap();
+        }
+
+        function updateMap() {
+            let selectedYear = document.getElementById('yearFilter').value;
+            let selectedStreet = document.getElementById('streetFilter').value;
+            markersLayer.clearLayers();
+
+            let filteredData = transactions.filter(t => 
+                (!selectedYear || t.annee == selectedYear) &&
+                (!selectedStreet || t.rue == selectedStreet)
+            );
+
+            filteredData.forEach(t => {
+                let marker = L.marker([t.lat, t.lon]);
+                marker.bindPopup(`
+                    <b>${t.num} ${t.rue}</b><br>
+                    🏠 Type : ${t.type}<br>
+                    📅 Année : ${t.annee}<br>
+                    💰 Prix : ${t.prix.toLocaleString()} €<br>
+                    📏 Surface : ${t.surface} m²
+                `);
+                markersLayer.addLayer(marker);
+            });
+        }
+    </script>
+</body>
+</html>
+
