@@ -3,94 +3,136 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carte des Transactions Immobilières</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <title>Carte des Ventes Immobilières</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
     <style>
         #map { height: 600px; }
-        .filter-container {
-            margin-bottom: 10px;
-        }
+        #filters { margin-bottom: 10px; }
     </style>
 </head>
 <body>
-    <div class="filter-container">
-        <label for="yearFilter">Année :</label>
-        <select id="yearFilter"></select>
-        <label for="streetFilter">Rue :</label>
-        <select id="streetFilter" disabled></select>
+    <h2>Carte des Ventes Immobilières à Saint-Maur-des-Fossés</h2>
+    <div id="filters">
+        <label for="yearFilter">Filtrer par année : </label>
+        <select id="yearFilter">
+            <option value="all">Toutes les années</option>
+            <option value="2019">2019</option>
+            <option value="2020">2020</option>
+            <option value="2021">2021</option>
+            <option value="2022">2022</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+        </select>
+        
+        <label for="typeFilter">Filtrer par type de bien : </label>
+        <select id="typeFilter">
+            <option value="all">Tous les types</option>
+            <option value="Appartement">🏢 Appartement</option>
+            <option value="Maison">🏡 Maison</option>
+            <option value="Dépendance">🏚️ Dépendance</option>
+        </select>
+        
+        <label for="piecesFilter">Filtrer par nombre de pièces : </label>
+        <select id="piecesFilter">
+            <option value="all">Tous</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5 et +</option>
+        </select>
+        
+        <label for="priceMin">Prix min 💰: </label>
+        <input type="number" id="priceMin" placeholder="Min" />
+        
+        <label for="priceMax">Prix max 💰💰💰: </label>
+        <input type="number" id="priceMax" placeholder="Max" />
+        
+        <label for="sizeMin">Surface min 📏: </label>
+        <input type="number" id="sizeMin" placeholder="Min" />
+        
+        <label for="sizeMax">Surface max 📏: </label>
+        <input type="number" id="sizeMax" placeholder="Max" />
     </div>
+
+    <p><a href="https://progress-immo.fr/fr/generator" target="_blank">📊 Estimer votre bien en ligne en quelques clics</a></p>
+
     <div id="map"></div>
-
+    
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
     <script>
-        let transactions = [];
-        let map = L.map('map').setView([48.8004, 2.4919], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        let markersLayer = L.markerClusterGroup().addTo(map);
-
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('transactions.json')
-                .then(response => response.json())
-                .then(data => {
-                    transactions = data;
-                    initFilters();
-                })
-                .catch(error => console.error("Erreur lors du chargement des transactions :", error));
+        var map = L.map('map').setView([48.8, 2.5], 13);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        
+        var markers = L.markerClusterGroup();
+        
+        var redIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34]
         });
-
-        function initFilters() {
-            let yearSelect = document.getElementById('yearFilter');
-            let streetSelect = document.getElementById('streetFilter');
-
-            let years = [...new Set(transactions.map(t => t.annee))].sort();
-            years.forEach(year => {
-                let option = new Option(year, year);
-                yearSelect.add(option);
-            });
-            yearSelect.addEventListener('change', updateStreets);
-            streetSelect.addEventListener('change', updateMap);
-        }
-
-        function updateStreets() {
-            let selectedYear = document.getElementById('yearFilter').value;
-            let streetSelect = document.getElementById('streetFilter');
-            streetSelect.innerHTML = '';
-            
-            let streets = [...new Set(transactions.filter(t => t.annee == selectedYear).map(t => t.rue))].sort();
-            streets.forEach(street => {
-                let option = new Option(street, street);
-                streetSelect.add(option);
-            });
-            streetSelect.disabled = false;
-            updateMap();
-        }
+        
+        var ventes = [];
+        
+        fetch('transactions_st_maur.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                ventes = data;
+                updateMap();
+            })
+            .catch(error => console.error("❌ Erreur de chargement du fichier JSON :", error));
 
         function updateMap() {
-            let selectedYear = document.getElementById('yearFilter').value;
-            let selectedStreet = document.getElementById('streetFilter').value;
-            markersLayer.clearLayers();
+            markers.clearLayers();
+            var year = document.getElementById('yearFilter').value;
+            var type = document.getElementById('typeFilter').value;
+            var pieces = document.getElementById('piecesFilter').value;
+            var priceMin = document.getElementById('priceMin').value;
+            var priceMax = document.getElementById('priceMax').value;
+            var sizeMin = document.getElementById('sizeMin').value;
+            var sizeMax = document.getElementById('sizeMax').value;
+            
+            ventes.forEach(function(vente) {
+                if (vente.latitude !== null && vente.longitude !== null &&
+                    !isNaN(vente.latitude) && !isNaN(vente.longitude)) {
 
-            let filteredData = transactions.filter(t => 
-                (!selectedYear || t.annee == selectedYear) &&
-                (!selectedStreet || t.rue == selectedStreet)
-            );
-
-            filteredData.forEach(t => {
-                let marker = L.marker([t.lat, t.lon]);
-                marker.bindPopup(`
-                    <b>${t.num} ${t.rue}</b><br>
-                    🏠 Type : ${t.type}<br>
-                    📅 Année : ${t.annee}<br>
-                    💰 Prix : ${t.prix.toLocaleString()} €<br>
-                    📏 Surface : ${t.surface} m²
-                `);
-                markersLayer.addLayer(marker);
+                    var prixAffichage = vente.valeur_fonciere ? vente.valeur_fonciere.toLocaleString('fr-FR') + " €" : "Non spécifié";
+                    var typeAffichage = vente.type_local ? vente.type_local : "Non spécifié";
+                    var adresseAffichage = (vente.adresse_numero ? vente.adresse_numero + ' ' : '') + (vente.adresse_nom_voie ? vente.adresse_nom_voie : "Adresse inconnue");
+                    var piecesAffichage = vente.nombre_pieces_principales !== null ? vente.nombre_pieces_principales : "Non spécifié";
+                    var surfaceAffichage = vente.surface_reelle_bati ? vente.surface_reelle_bati + " m²" : "Non spécifié";
+                    
+                    var popupContent = `<b>📍 ${adresseAffichage}</b><br>
+                        📅 Date de mutation : ${vente.date_mutation}<br>
+                        💰 Prix : ${prixAffichage}<br>
+                        🏠 Type : ${typeAffichage}<br>
+                        📏 Surface : ${surfaceAffichage}<br>
+                        🛏️ Pièces : ${piecesAffichage}`;
+                    
+                    var marker = L.marker([vente.latitude, vente.longitude], { icon: redIcon })
+                        .bindPopup(popupContent);
+                    markers.addLayer(marker);
+                }
             });
+            
+            map.addLayer(markers);
         }
+        
+        document.querySelectorAll('#filters select, #filters input').forEach(element => {
+            element.addEventListener('change', updateMap);
+        });
     </script>
 </body>
 </html>
-

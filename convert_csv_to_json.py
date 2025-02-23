@@ -1,43 +1,24 @@
-import csv
-import json
+import pandas as pd
+import glob
+import os
 
-# Fichiers source et destination
-csv_file = "transactions.csv"
-json_file = "transactions.json"
+pd.set_option('future.no_silent_downcasting', True)
 
-transactions = []
+# Pattern mis à jour pour trouver les fichiers optimisés
+fichiers = glob.glob("*_st_maur_optimized.csv")
+print("Fichiers trouvés :", fichiers)
 
-with open(csv_file, newline='', encoding='utf-8') as csvfile:
-    reader = csv.DictReader(csvfile, delimiter=',')  # Change à ';' si besoin
+liste_df = []
 
-    for row in reader:
-        try:
-            # Extraire l'année depuis date_mutation
-            annee = row["date_mutation"].split("-")[0]  # Prend l'année uniquement
-            
-            # Vérifier que les coordonnées sont valides
-            if row["latitude"] and row["longitude"]:
-                lat = float(row["latitude"])
-                lon = float(row["longitude"])
-            else:
-                continue  # Sauter les lignes sans coordonnées
+for fichier in fichiers:
+    df = pd.read_csv(fichier, dtype=str)
+    liste_df.append(df)
+    print(f"Fichier traité : {fichier}")
 
-            # Récupérer les autres informations
-            transactions.append({
-                "annee": int(annee),
-                "rue": row["adresse_nom_voie"].strip(),
-                "num": row["adresse_numero"].strip() if row["adresse_numero"] else "N/A",
-                "prix": int(float(row["valeur_fonciere"])) if row["valeur_fonciere"] else 0,
-                "surface": int(float(row["surface_reelle_bati"])) if row["surface_reelle_bati"] else 0,
-                "type": row["type_local"].strip(),
-                "lat": lat,
-                "lon": lon
-            })
-        except ValueError as e:
-            print(f"Erreur de conversion sur la ligne : {row}, {e}")
-
-# Sauvegarde du JSON
-with open(json_file, "w", encoding="utf-8") as jsonfile:
-    json.dump(transactions, jsonfile, indent=4, ensure_ascii=False)
-
-print(f"✅ Conversion terminée ! {len(transactions)} transactions enregistrées.")
+if liste_df:
+    df_combiné = pd.concat(liste_df, ignore_index=True)
+    output_file = "combined_optimized.json"
+    df_combiné.to_json(output_file, orient='records', indent=2, force_ascii=False)
+    print(f"Fichier JSON combiné sauvegardé : {output_file}")
+else:
+    print("Aucun fichier CSV trouvé.")
