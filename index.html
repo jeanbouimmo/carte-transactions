@@ -82,12 +82,7 @@
         var ventes = [];
         
         fetch('transactions_st_maur.json')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
                 ventes = data;
                 updateMap();
@@ -95,7 +90,9 @@
             .catch(error => console.error("❌ Erreur de chargement du fichier JSON :", error));
 
         function updateMap() {
+            console.log("🔄 Mise à jour de la carte...");
             markers.clearLayers();
+            
             var year = document.getElementById('yearFilter').value;
             var type = document.getElementById('typeFilter').value;
             var pieces = document.getElementById('piecesFilter').value;
@@ -104,25 +101,27 @@
             var sizeMin = document.getElementById('sizeMin').value;
             var sizeMax = document.getElementById('sizeMax').value;
             
+            console.log({ year, type, pieces, priceMin, priceMax, sizeMin, sizeMax });
+            
             ventes.forEach(function(vente) {
                 if (vente.latitude !== null && vente.longitude !== null &&
-                    !isNaN(vente.latitude) && !isNaN(vente.longitude)) {
+                    (year === 'all' || vente.date_mutation.startsWith(year)) &&
+                    (type === 'all' || vente.type_local === type) &&
+                    (pieces === 'all' || (pieces === '5' ? vente.nombre_pieces_principales >= 5 : vente.nombre_pieces_principales == pieces)) &&
+                    (priceMin === '' || vente.valeur_fonciere >= parseInt(priceMin)) &&
+                    (priceMax === '' || vente.valeur_fonciere <= parseInt(priceMax)) &&
+                    (sizeMin === '' || vente.surface_reelle_bati >= parseInt(sizeMin)) &&
+                    (sizeMax === '' || vente.surface_reelle_bati <= parseInt(sizeMax))) {
 
-                    var prixAffichage = vente.valeur_fonciere ? vente.valeur_fonciere.toLocaleString('fr-FR') + " €" : "Non spécifié";
-                    var typeAffichage = vente.type_local ? vente.type_local : "Non spécifié";
-                    var adresseAffichage = (vente.adresse_numero ? vente.adresse_numero + ' ' : '') + (vente.adresse_nom_voie ? vente.adresse_nom_voie : "Adresse inconnue");
-                    var piecesAffichage = vente.nombre_pieces_principales !== null ? vente.nombre_pieces_principales : "Non spécifié";
-                    var surfaceAffichage = vente.surface_reelle_bati ? vente.surface_reelle_bati + " m²" : "Non spécifié";
-                    
-                    var popupContent = `<b>📍 ${adresseAffichage}</b><br>
-                        📅 Date de mutation : ${vente.date_mutation}<br>
-                        💰 Prix : ${prixAffichage}<br>
-                        🏠 Type : ${typeAffichage}<br>
-                        📏 Surface : ${surfaceAffichage}<br>
-                        🛏️ Pièces : ${piecesAffichage}`;
-                    
+                    console.log("✅ Vente affichée :", vente);
+
                     var marker = L.marker([vente.latitude, vente.longitude], { icon: redIcon })
-                        .bindPopup(popupContent);
+                        .bindPopup(`<b>📍 ${vente.adresse_numero || ''} ${vente.adresse_nom_voie || 'Adresse inconnue'}</b><br>
+                            📅 Date de mutation : ${vente.date_mutation}<br>
+                            💰 Prix : ${vente.valeur_fonciere ? vente.valeur_fonciere.toLocaleString('fr-FR') + " €" : "Non spécifié"}<br>
+                            🏠 Type : ${vente.type_local || "Non spécifié"}<br>
+                            📏 Surface : ${vente.surface_reelle_bati ? vente.surface_reelle_bati + " m²" : "Non spécifié"}<br>
+                            🛏️ Pièces : ${vente.nombre_pieces_principales || "Non spécifié"}`);
                     markers.addLayer(marker);
                 }
             });
